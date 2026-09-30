@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Actuated Valve & Propulsion Test Control Panel</title>
+  <!-- Chart.js CDN for Telemetry Plotting -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --card-bg: #151c2c;
+      --border-color: #2a364f;
+      --accent-color: #38bdf8;
+      --accent-warn: #ef4444;
+      --accent-success: #10b981;
+      --accent-amber: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 16px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      padding: 12px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .log-control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #0f172a;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .log-control-group input[type=text] {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--accent-color);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      width: 180px;
+    }
+
+    .status-badge {
+      font-size: 0.85rem;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: #2a364f;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .status-badge.connected { background: var(--accent-success); color: #042f2e; }
+
+    /* Wireframe Grid Blueprint Layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1.8fr;
+      gap: 16px;
+      flex: 1;
+    }
+
+    .col-left, .col-right {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .right-top-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 16px;
+    }
+
+    .right-mid-grid {
+      display: grid;
+      grid-template-columns: 0.6fr 1fr 1.4fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 16px;
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+
+    .card-title {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .chart-box {
+      position: relative;
+      height: 180px;
+      width: 100%;
+    }
+
+    /* Continuity Indicators */
+    .indicator-list {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      align-items: center;
+      height: 100%;
+    }
+    .indicator-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #334155;
+      border: 2px solid #475569;
+      transition: all 0.2s;
+    }
+    .indicator-dot.active {
+      background: var(--accent-success);
+      border-color: #34d399;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+    }
+
+    /* Inputs & Form Groups */
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    label { font-size: 0.8rem; color: var(--text-muted); }
+    input[type=number] {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      color: var(--accent-color);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      width: 100%;
+    }
+
+    .btn {
+      background: var(--accent-color);
+      color: #0f172a;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .btn-log {
+      background: var(--accent-amber);
+      color: #000;
+    }
+    .btn-log.active {
+      background: var(--accent-warn);
+      color: #fff;
+    }
+
+    .btn-start-pressure {
+      background: var(--accent-success);
+      color: #042f2e;
+      margin-top: 4px;
+    }
+    .btn-start-pressure.active {
+      background: var(--accent-amber);
+      color: #000;
+    }
+
+    /* Ignition & Safety Arming */
+    .ignition-panel {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      gap: 12px;
+    }
+    .ignite-btn-ring {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      border: 4px solid var(--accent-warn);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(239, 68, 68, 0.1);
+    }
+    .ignite-btn {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: var(--accent-warn);
+      color: white;
+      border: none;
+      font-weight: 800;
+      font-size: 0.9rem;
+      cursor: pointer;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    }
+    .ignite-btn:disabled { background: #475569; box-shadow: none; }
+    
+    .arm-keys {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .arm-btn {
+      background: #334155;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+    .arm-btn.armed { background: var(--accent-amber); color: #000; font-weight: bold; }
+
+    /* Burnrate Matrix Readouts */
+    .burnrate-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .readout-box {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      padding: 8px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .readout-val { font-size: 1.1rem; color: var(--accent-color); font-weight: bold; }
+
+    /* Rotary Encoder Wheel Control */
+    .encoder-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      gap: 16px;
+    }
+    .encoder-dial {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      border: 6px solid var(--border-color);
+      background: radial-gradient(circle, #1e293b 60%, #0f172a 100%);
+      position: relative;
+      cursor: grab;
+      touch-action: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .encoder-dial:active { cursor: grabbing; }
+    .encoder-marker {
+      width: 12px;
+      height: 12px;
+      background: var(--accent-color);
+      border-radius: 50%;
+      position: absolute;
+      top: 8px;
+      left: calc(50% - 6px);
+      transform-origin: 6px 47px;
+    }
+
+    .log-panel {
+      background: #020617;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #a7f3d0;
+      height: 80px;
+      overflow-y: auto;
+      border: 1px solid var(--border-color);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h2>Actuated Valve Propulsion Controller</h2>
+    <div class="header-controls">
+      <!-- SD Datalogging Input Group -->
+      <div class="log-control-group">
+        <label>Log File:</label>
+        <input type="text" id="logFilenameInput" placeholder="test_log1 (or blank for timestamp)">
+        <button class="btn btn-log" id="toggleLogBtn" onclick="toggleLogging()">Start Logging</button>
+      </div>
+      <button class="btn" id="connectBtn" onclick="toggleConnect()">Connect BLE</button>
+      <div id="connectionStatus" class="status-badge">Disconnected</div>
+    </div>
+  </header>
+
+  <div class="dashboard-grid">
+    
+    <!-- LEFT COLUMN: Graphs -->
+    <div class="col-left">
+      <div class="card">
+        <span class="card-title">Actual & Target Pressure (PSI)</span>
+        <div class="chart-box"><canvas id="pressureChart"></canvas></div>
+      </div>
+      <div class="card">
+        <span class="card-title">Dual Temperature (°C)</span>
+        <div class="chart-box"><canvas id="tempChart"></canvas></div>
+      </div>
+      <div class="card">
+        <span class="card-title">Target & Actual Motor Pos / Speed</span>
+        <div class="chart-box"><canvas id="motorChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Control Blocks -->
+    <div class="col-right">
+      
+      <!-- Top Grid: Set Pressure / Max Valve & Ignition -->
+      <div class="right-top-grid">
+        <div class="card">
+          <span class="card-title">Pressure & Valve Limits</span>
+          <div class="input-group">
+            <label>Set Target Pressure (PSI)</label>
+            <input type="number" id="targetPressureInput" value="0">
+            <button class="btn" onclick="sendTargetPressure()">Set Pressure</button>
+          </div>
+          <div class="input-group">
+            <label>Max Valve Open (% Max)</label>
+            <input type="number" id="maxValveInput" value="0" min="0" max="2">
+            <button class="btn" onclick="sendMaxValve()">Set Limit</button>
+          </div>
+          <button class="btn btn-start-pressure" id="startPressureBtn" onclick="togglePressureControl()">Start Pressure Control</button>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Dual Arm Ignition Control</span>
+          <div class="ignition-panel">
+            <div class="ignite-btn-ring">
+              <button class="ignite-btn" id="igniteBtn" onclick="triggerIgnition()" disabled>IGNITE</button>
+            </div>
+            <div class="arm-keys">
+              <button class="arm-btn" id="arm1" onclick="toggleArm(1)">Arm Key 1</button>
+              <button class="arm-btn" id="arm2" onclick="toggleArm(2)">Arm Key 2</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mid Grid: Continuity, Length Inputs, Burnrate Calculated Data -->
+      <div class="right-mid-grid">
+        <div class="card">
+          <span class="card-title">Continuity</span>
+          <div class="indicator-list">
+            <div class="indicator-dot" id="cont1" title="Continuity 1"></div>
+            <div class="indicator-dot" id="cont2" title="Continuity 2"></div>
+            <div class="indicator-dot" id="cont3" title="Continuity 3"></div>
+            <div class="indicator-dot" id="cont4" title="Continuity 4"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Segment Lengths (mm)</span>
+          <div class="input-group"><label>Length 1</label><input type="number" id="len1" value="20" onchange="sendLengths()"></div>
+          <div class="input-group"><label>Length 2</label><input type="number" id="len2" value="20" onchange="sendLengths()"></div>
+          <div class="input-group"><label>Length 3</label><input type="number" id="len3" value="20" onchange="sendLengths()"></div>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Calculated Burnrate (mm/s)</span>
+          <div class="burnrate-grid">
+            <div class="readout-box"><label>Burnrate 1</label><div class="readout-val" id="br1">0.00</div></div>
+            <div class="readout-box"><label>Burnrate 2</label><div class="readout-val" id="br2">0.00</div></div>
+            <div class="readout-box"><label>Burnrate 3</label><div class="readout-val" id="br3">0.00</div></div>
+            <div class="readout-box"><label>Total Rate</label><div class="readout-val" id="brTotal">0.00</div></div>
+          </div>
+          <div class="readout-box" style="margin-top: 6px;">
+            <label>@ Avg Pressure</label>
+            <div class="readout-val" id="brAvgPress">0 PSI</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Panel: PID Tuning & Continuous Encoder Control -->
+      <div class="card" style="flex:1;">
+        <span class="card-title">PID Parameters & Continuous Rotary Encoder Control</span>
+        <div class="right-top-grid">
+          <div class="input-group">
+            <label>Kp Gain</label><input type="number" id="kpInput" value="0.001" step="0.0001">
+            <label>Ki Gain</label><input type="number" id="kiInput" value="0.00" step="0.001">
+            <label>Kd Gain</label><input type="number" id="kdInput" value="0.00" step="0.001">
+            <button class="btn" onclick="sendPID()">Update PID Coefficients</button>
+          </div>
+
+          <div class="encoder-container">
+            <div class="encoder-dial" id="encoderWheel">
+              <div class="encoder-marker" id="encoderMarker"></div>
+            </div>
+            <div class="readout-box" style="min-width: 110px;">
+              <label>Manual Turn</label>
+              <div class="readout-val" id="encoderPosReadout">0°</div>
+              <label style="font-size:0.7rem;" id="encoderDirReadout">IDLE</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="log-panel" id="logOutput">
+    [SYSTEM] Valve Control GUI Initialized. Ready for BLE connection...<br>
+  </div>
+
+  <script>
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const COMMAND_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    const TELEMETRY_CHAR_UUID = "d2279fa6-2f04-44b4-825f-f613143c7b2b";
+
+    let bleDevice = null;
+    let commandChar = null;
+    let telemetryChar = null;
+    let sendTimeout = null;
+
+    let armState = { key1: false, key2: false };
+    let isPressureControlActive = false;
+    let isLoggingActive = false;
+
+    function log(msg) {
+      const panel = document.getElementById('logOutput');
+      panel.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+      panel.scrollTop = panel.scrollHeight;
+    }
+
+    const maxDataPoints = 30;
+    function createChart(canvasId, datasets) {
+      return new Chart(document.getElementById(canvasId).getContext('2d'), {
+        type: 'line',
+        data: { labels: Array(maxDataPoints).fill(''), datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: { grid: { color: '#1e293b' } },
+            y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+          },
+          plugins: { legend: { labels: { color: '#f8fafc', font: { size: 10 } } } }
+        }
+      });
+    }
+
+    const pressureChart = createChart('pressureChart', [
+      { label: 'Target Pressure', borderColor: '#38bdf8', data: [], borderDash: [5, 5] },
+      { label: 'Actual Pressure', borderColor: '#ef4444', data: [] }
+    ]);
+
+    const tempChart = createChart('tempChart', [
+      { label: 'Temp 1 (°C)', borderColor: '#f59e0b', data: [] },
+      { label: 'Temp 2 (°C)', borderColor: '#10b981', data: [] }
+    ]);
+
+    const motorChart = createChart('motorChart', [
+      { label: 'Target Pos', borderColor: '#38bdf8', data: [], borderDash: [5, 5] },
+      { label: 'Actual Pos', borderColor: '#818cf8', data: [] },
+      { label: 'Target Speed', borderColor: '#f472b6', data: [], borderDash: [2, 2] },
+      { label: 'Actual Speed', borderColor: '#c084fc', data: [] }
+    ]);
+
+    function pushData(chart, datasetIdx, val) {
+      const data = chart.data.datasets[datasetIdx].data;
+      if (data.length >= maxDataPoints) data.shift();
+      data.push(val);
+      chart.update();
+    }
+
+    async function toggleConnect() {
+      if (bleDevice && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+        return;
+      }
+      try {
+        log("Searching for ESP32-S3...");
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ namePrefix: "ESP32_Valve" }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        bleDevice.addEventListener('gattserverdisconnected', () => {
+          document.getElementById('connectionStatus').innerText = "Disconnected";
+          document.getElementById('connectionStatus').classList.remove('connected');
+          log("Device Disconnected.");
+        });
+
+        const server = await bleDevice.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        commandChar = await service.getCharacteristic(COMMAND_CHAR_UUID);
+        telemetryChar = await service.getCharacteristic(TELEMETRY_CHAR_UUID);
+
+        await telemetryChar.startNotifications();
+        telemetryChar.addEventListener('characteristicvaluechanged', handleTelemetry);
+
+        document.getElementById('connectionStatus').innerText = "Connected";
+        document.getElementById('connectionStatus').classList.add('connected');
+        log("BLE Connected Successfully!");
+      } catch (err) {
+        log(`BLE Error: ${err.message}`);
+      }
+    }
+
+    function queueCommand(cmdString) {
+      if (sendTimeout) return;
+      sendTimeout = setTimeout(async () => {
+        sendTimeout = null;
+        if (!commandChar) return;
+        try {
+          const encoder = new TextEncoder();
+          await commandChar.writeValue(encoder.encode(cmdString));
+          log(`Sent: ${cmdString}`);
+        } catch (err) {
+          log(`Tx Error: ${err.message}`);
+        }
+      }, 40);
+    }
+
+    function handleTelemetry(event) {
+      const dataView = event.target.value; 
+      
+      if (dataView.byteLength !== 53) {
+        return;
+      }
+
+      let offset = 0;
+      const isLittleEndian = true; 
+
+      const timestamp_ms = dataView.getUint32(offset, isLittleEndian); offset += 4;
+      const target_psi   = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const actual_psi   = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const temp1        = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const temp2        = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const target_pos   = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const actual_pos   = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const target_spd   = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const actual_spd   = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+
+      const flags = dataView.getUint8(offset); offset += 1;
+      const cont1 = Boolean(flags & (1 << 0));
+      const cont2 = Boolean(flags & (1 << 1));
+      const cont3 = Boolean(flags & (1 << 2));
+      const cont4 = Boolean(flags & (1 << 3));
+
+      const br1    = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const br2    = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const br3    = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const br_avg = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+
+      pushData(pressureChart, 0, target_psi);
+      pushData(pressureChart, 1, actual_psi);
+      
+      pushData(tempChart, 0, temp1);
+      pushData(tempChart, 1, temp2);
+      
+      pushData(motorChart, 0, target_pos);
+      pushData(motorChart, 1, actual_pos);
+      pushData(motorChart, 2, target_spd);
+      pushData(motorChart, 3, actual_spd);
+
+      const contElements = [
+        document.getElementById('cont1'),
+        document.getElementById('cont2'),
+        document.getElementById('cont3'),
+        document.getElementById('cont4')
+      ];
+      const contStates = [cont1, cont2, cont3, cont4];
+      
+      contStates.forEach((state, idx) => {
+        if (contElements[idx]) {
+          if (state) contElements[idx].classList.add('active');
+          else contElements[idx].classList.remove('active');
+        }
+      });
+
+      document.getElementById('br1').innerText = br1.toFixed(2);
+      document.getElementById('br2').innerText = br2.toFixed(2);
+      document.getElementById('br3').innerText = br3.toFixed(2);
+      document.getElementById('brTotal').innerText = br_avg.toFixed(2);
+      document.getElementById('brAvgPress').innerText = `${actual_psi.toFixed(0)} PSI`;
+    }
+
+    // Toggle SD Logging
+    function toggleLogging() {
+      const btn = document.getElementById('toggleLogBtn');
+      const input = document.getElementById('logFilenameInput');
+      isLoggingActive = !isLoggingActive;
+
+      if (isLoggingActive) {
+        let filename = input.value.trim();
+        if (!filename) {
+          // Format current Date and Time if input is empty
+          const d = new Date();
+          const dateStr = d.toISOString().slice(0, 10);
+          const timeStr = d.toTimeString().slice(0, 8).replace(/:/g, '-');
+          filename = `log_${dateStr}_${timeStr}`;
+        }
+        
+        btn.innerText = "Stop Logging";
+        btn.classList.add('active');
+        input.disabled = true;
+        
+        queueCommand(`START_LOG:${filename}`);
+        log(`DATALOGGING STARTED -> File: ${filename}`);
+      } else {
+        btn.innerText = "Start Logging";
+        btn.classList.remove('active');
+        input.disabled = false;
+        
+        queueCommand("STOP_LOG");
+        log("DATALOGGING STOPPED.");
+      }
+    }
+
+    function sendTargetPressure() {
+      const val = document.getElementById('targetPressureInput').value;
+      queueCommand(`SET_PRESS:${val}`);
+    }
+
+    function sendMaxValve() {
+      const val = document.getElementById('maxValveInput').value;
+      queueCommand(`SET_MAX_VALVE:${val}`);
+    }
+
+    function togglePressureControl() {
+      const btn = document.getElementById('startPressureBtn');
+      isPressureControlActive = !isPressureControlActive;
+
+      if (isPressureControlActive) {
+        btn.innerText = "Stop Pressure Control";
+        btn.classList.add('active');
+        const targetVal = document.getElementById('targetPressureInput').value;
+        queueCommand(`START_PRESSURE:${targetVal}`);
+        log(`PRESSURE CONTROL ACTIVATED -> Target: ${targetVal} PSI`);
+      } else {
+        btn.innerText = "Start Pressure Control";
+        btn.classList.remove('active');
+        queueCommand("STOP_PRESSURE");
+        log("PRESSURE CONTROL STOPPED.");
+      }
+    }
+
+    function sendPID() {
+      const kp = document.getElementById('kpInput').value;
+      const ki = document.getElementById('kiInput').value;
+      const kd = document.getElementById('kdInput').value;
+      queueCommand(`SET_PID:${kp},${ki},${kd}`);
+    }
+
+    function sendLengths() {
+      const l1 = document.getElementById('len1').value;
+      const l2 = document.getElementById('len2').value;
+      const l3 = document.getElementById('len3').value;
+      queueCommand(`SET_LEN:${l1},${l2},${l3}`);
+    }
+
+    function toggleArm(keyNum) {
+      if (keyNum === 1) {
+        armState.key1 = !armState.key1;
+        document.getElementById('arm1').classList.toggle('armed', armState.key1);
+      } else {
+        armState.key2 = !armState.key2;
+        document.getElementById('arm2').classList.toggle('armed', armState.key2);
+      }
+
+      const igniteBtn = document.getElementById('igniteBtn');
+      if (armState.key1 && armState.key2) {
+        igniteBtn.disabled = false;
+        log("SAFETY SYSTEM: IGNITION ARMED!");
+      } else {
+        igniteBtn.disabled = true;
+      }
+    }
+
+    function triggerIgnition() {
+      if (armState.key1 && armState.key2) {
+        queueCommand("IGNITE:FIRE");
+        log("IGNITION SEQUENCE EXECUTED!");
+      }
+    }
+
+    // Rotary Encoder
+    const wheel = document.getElementById('encoderWheel');
+    const marker = document.getElementById('encoderMarker');
+    let isDragging = false;
+    let lastAngleRad = null;
+    let visualMarkerAngle = 0; 
+    let totalRotatedDegrees = 0; 
+
+    wheel.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      wheel.setPointerCapture(e.pointerId);
+      const rect = wheel.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      lastAngleRad = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+    });
+
+    window.addEventListener('pointerup', (e) => {
+      if (isDragging) {
+        isDragging = false;
+        lastAngleRad = null;
+        document.getElementById('encoderDirReadout').innerText = "IDLE";
+        queueCommand("MANUAL_ROTATE:STOP");
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging || lastAngleRad === null) return;
+
+      const rect = wheel.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const currentAngleRad = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+
+      let deltaRad = currentAngleRad - lastAngleRad;
+      
+      if (deltaRad > Math.PI) deltaRad -= 2 * Math.PI;
+      else if (deltaRad < -Math.PI) deltaRad += 2 * Math.PI;
+
+      const deltaDeg = deltaRad * (180 / Math.PI);
+      
+      visualMarkerAngle += deltaDeg;
+      totalRotatedDegrees += deltaDeg;
+      lastAngleRad = currentAngleRad;
+
+      marker.style.transform = `rotate(${visualMarkerAngle}deg)`;
+      document.getElementById('encoderPosReadout').innerText = `${Math.round(totalRotatedDegrees)}°`;
+
+      const dirText = deltaDeg > 0 ? "CW (OPENING)" : "CCW (CLOSING)";
+      document.getElementById('encoderDirReadout').innerText = dirText;
+
+      const dirFlag = deltaDeg > 0 ? "CW" : "CCW";
+      const speed = Math.min(Math.abs(deltaDeg) * 10, 100).toFixed(0); 
+      queueCommand(`MANUAL_ROTATE:${dirFlag}:${speed}`);
+    });
+  </script>
+</body>
+</html>
