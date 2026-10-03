@@ -47,6 +47,17 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .sensor-status-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #0f172a;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
     }
 
     .log-control-group {
@@ -70,14 +81,28 @@
     }
 
     .status-badge {
-      font-size: 0.85rem;
-      padding: 6px 14px;
-      border-radius: 20px;
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 14px;
       background: #2a364f;
       color: var(--text-muted);
       font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
     .status-badge.connected { background: var(--accent-success); color: #042f2e; }
+    .status-badge.status-ok { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid var(--accent-success); }
+    .status-badge.status-fault { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid var(--accent-warn); }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+    .status-ok .status-dot { background: var(--accent-success); }
+    .status-fault .status-dot { background: var(--accent-warn); }
 
     /* Wireframe Grid Blueprint Layout */
     .dashboard-grid {
@@ -312,6 +337,13 @@
   <header>
     <h2>Actuated Valve Propulsion Controller</h2>
     <div class="header-controls">
+      <!-- Hardware Diagnostic Badges -->
+      <div class="sensor-status-group">
+        <div id="inaStatus" class="status-badge status-fault"><span class="status-dot"></span>INA219</div>
+        <div id="mtStatus" class="status-badge status-fault"><span class="status-dot"></span>MT6701</div>
+        <div id="sdStatus" class="status-badge status-fault"><span class="status-dot"></span>SD Card</div>
+      </div>
+
       <!-- SD Datalogging Input Group -->
       <div class="log-control-group">
         <label>Log File:</label>
@@ -502,6 +534,17 @@
       chart.update();
     }
 
+    function updateSensorBadge(elementId, isOk) {
+      const badge = document.getElementById(elementId);
+      if (isOk) {
+        badge.classList.remove('status-fault');
+        badge.classList.add('status-ok');
+      } else {
+        badge.classList.remove('status-ok');
+        badge.classList.add('status-fault');
+      }
+    }
+
     async function toggleConnect() {
       if (bleDevice && bleDevice.gatt.connected) {
         bleDevice.gatt.disconnect();
@@ -517,6 +560,9 @@
         bleDevice.addEventListener('gattserverdisconnected', () => {
           document.getElementById('connectionStatus').innerText = "Disconnected";
           document.getElementById('connectionStatus').classList.remove('connected');
+          updateSensorBadge('inaStatus', false);
+          updateSensorBadge('mtStatus', false);
+          updateSensorBadge('sdStatus', false);
           log("Device Disconnected.");
         });
 
@@ -554,7 +600,8 @@
     function handleTelemetry(event) {
       const dataView = event.target.value; 
       
-      if (dataView.byteLength !== 53) {
+      // Packet length = 54 bytes with sensor_status_flags added
+      if (dataView.byteLength !== 54) {
         return;
       }
 
@@ -577,10 +624,19 @@
       const cont3 = Boolean(flags & (1 << 2));
       const cont4 = Boolean(flags & (1 << 3));
 
+      const statusFlags = dataView.getUint8(offset); offset += 1;
+      const inaOk = Boolean(statusFlags & (1 << 0));
+      const mtOk  = Boolean(statusFlags & (1 << 1));
+      const sdOk  = Boolean(statusFlags & (1 << 2));
+
       const br1    = dataView.getFloat32(offset, isLittleEndian); offset += 4;
       const br2    = dataView.getFloat32(offset, isLittleEndian); offset += 4;
       const br3    = dataView.getFloat32(offset, isLittleEndian); offset += 4;
       const br_avg = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+
+      updateSensorBadge('inaStatus', inaOk);
+      updateSensorBadge('mtStatus', mtOk);
+      updateSensorBadge('sdStatus', sdOk);
 
       pushData(pressureChart, 0, target_psi);
       pushData(pressureChart, 1, actual_psi);
@@ -624,7 +680,6 @@
       if (isLoggingActive) {
         let filename = input.value.trim();
         if (!filename) {
-          // Format current Date and Time if input is empty
           const d = new Date();
           const dateStr = d.toISOString().slice(0, 10);
           const timeStr = d.toTimeString().slice(0, 8).replace(/:/g, '-');
