@@ -207,6 +207,12 @@
     }
     .btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
+    .btn-origin {
+      background: #6366f1;
+      color: #ffffff;
+      margin-top: 2px;
+    }
+
     .btn-log {
       background: var(--accent-amber);
       color: #000;
@@ -390,6 +396,7 @@
             <input type="number" id="maxValveInput" value="0" min="0" max="2">
             <button class="btn" onclick="sendMaxValve()">Set Limit</button>
           </div>
+          <button class="btn btn-origin" onclick="setValveOrigin()">Set Valve Origin (0 mm)</button>
           <button class="btn btn-start-pressure" id="startPressureBtn" onclick="togglePressureControl()">Start Pressure Control</button>
         </div>
 
@@ -621,7 +628,7 @@
       const flags = dataView.getUint8(offset); offset += 1;
       const cont1 = Boolean(flags & (1 << 0));
       const cont2 = Boolean(flags & (1 << 1));
-      const cont3 = Boolean(flags & (1 << 2));
+      const cont3 = Boolean(flags & (1 << 3));
       const cont4 = Boolean(flags & (1 << 3));
 
       const statusFlags = dataView.getUint8(offset); offset += 1;
@@ -710,6 +717,15 @@
     function sendMaxValve() {
       const val = document.getElementById('maxValveInput').value;
       queueCommand(`SET_MAX_VALVE:${val}`);
+    }
+
+    function setValveOrigin() {
+      totalRotatedDegrees = 0;
+      visualMarkerAngle = 0;
+      marker.style.transform = `rotate(0deg)`;
+      document.getElementById('encoderPosReadout').innerText = "0°";
+      queueCommand("SET_ORIGIN");
+      log("ORIGIN SET -> Current valve position set as 0.0 mm reference.");
     }
 
     function togglePressureControl() {
