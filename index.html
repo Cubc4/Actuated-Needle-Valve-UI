@@ -519,7 +519,7 @@
     // Pressure Chart with 3 Datasets: Target, Actual, and MRAC Model (Ym)
     const pressureChart = createChart('pressureChart', [
       { label: 'Target Pressure', borderColor: '#38bdf8', data: [], borderDash: [5, 5] },
-      { label: 'Actual Pressure', borderColor: '#ef4444', data: [] }
+      { label: 'Actual Pressure', borderColor: '#ef4444', data: [] },
       { label: 'MRAC Model (Ym)', borderColor: '#10b981', data: [] }
     ]);
 
@@ -605,12 +605,12 @@
       }, 40);
     }
 
-    // Binary Telemetry Receiver (Unpacks 54-Byte TelemetryPacket Struct)
+    // Binary Telemetry Receiver (Unpacks 58-Byte TelemetryPacket Struct)
     function handleTelemetry(event) {
       const dataView = event.target.value; 
       
-      // Verified 54-byte binary packet size matching ESP32 firmware
-      if (dataView.byteLength !== 54) {
+      // Verified 58-byte binary packet size matching updated ESP32 firmware
+      if (dataView.byteLength !== 58) {
         return;
       }
 
@@ -620,6 +620,7 @@
       const timestamp_ms = dataView.getUint32(offset, isLittleEndian); offset += 4;
       const target_psi   = dataView.getFloat32(offset, isLittleEndian); offset += 4;
       const actual_psi   = dataView.getFloat32(offset, isLittleEndian); offset += 4;
+      const model_ym_psi = dataView.getFloat32(offset, isLittleEndian); offset += 4;
       const temp1        = dataView.getFloat32(offset, isLittleEndian); offset += 4;
       const temp2        = dataView.getFloat32(offset, isLittleEndian); offset += 4;
       const target_pos   = dataView.getFloat32(offset, isLittleEndian); offset += 4;
@@ -647,8 +648,8 @@
       updateSensorBadge('mtStatus', mtOk);
       updateSensorBadge('sdStatus', sdOk);
 
-      pushData(pressureChart, 0, target_psi);
-      pushData(pressureChart, 1, actual_psi);
+      pushData(pressureChart, 0, target_psi);   // Blue Dashed
+      pushData(pressureChart, 1, actual_psi);   // Red Solid
       pushData(pressureChart, 2, model_ym_psi); // Green Solid
       
       pushData(tempChart, 0, temp1);
