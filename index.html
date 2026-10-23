@@ -520,6 +520,7 @@
     const pressureChart = createChart('pressureChart', [
       { label: 'Target Pressure', borderColor: '#38bdf8', data: [], borderDash: [5, 5] },
       { label: 'Actual Pressure', borderColor: '#ef4444', data: [] }
+      { label: 'MRAC Model (Ym)', borderColor: '#10b981', data: [] }
     ]);
 
     const tempChart = createChart('tempChart', [
@@ -648,6 +649,7 @@
 
       pushData(pressureChart, 0, target_psi);
       pushData(pressureChart, 1, actual_psi);
+      pushData(pressureChart, 2, model_ym_psi); // Green Solid
       
       pushData(tempChart, 0, temp1);
       pushData(tempChart, 1, temp2);
